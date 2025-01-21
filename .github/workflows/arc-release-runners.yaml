@@ -51,9 +51,9 @@ jobs:
           platforms: linux/amd64
           push: true
           build-args: |
-            RUNNER_VERSION=${{ env.RUNNER_VERSION }}
+            RUNNER_VERSION=${{ steps.versions.outputs.runner_version }}
             DOCKER_VERSION=${{ env.DOCKER_VERSION }}
-            RUNNER_CONTAINER_HOOKS_VERSION=${{ env.CONTAINER_HOOKS_VERSION }}
+            RUNNER_CONTAINER_HOOKS_VERSION=${{ steps.versions.outputs.container_hooks_version }}
           tags: |
             ghcr.io/erichorwath/actions-runner-controller/custom-u24-runner:v${{ env.RUNNER_VERSION }}-ubuntu-22.04
           cache-from: |
