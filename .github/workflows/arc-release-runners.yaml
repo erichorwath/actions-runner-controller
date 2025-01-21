@@ -13,10 +13,6 @@ on:
       - '.github/workflows/arc-release-runners.yaml'
 
 env:
-  # Safeguard to prevent pushing images to registeries after build
-  PUSH_TO_REGISTRIES: true
-  TARGET_ORG: actions-runner-controller
-  TARGET_WORKFLOW: release-runners.yaml
   DOCKER_VERSION: 24.0.7
 
 concurrency:
@@ -37,43 +33,34 @@ jobs:
           echo runner_version=$runner_current_version >> $GITHUB_OUTPUT
           echo container_hooks_version=$container_hooks_current_version >> $GITHUB_OUTPUT
 
-      - name: Get Token
-        id: get_workflow_token
-        uses: peter-murray/workflow-application-token-action@dc0413987a085fa17d19df9e47d4677cf81ffef3
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+    
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
         with:
-          application_id: ${{ secrets.ACTIONS_ACCESS_APP_ID }}
-          application_private_key: ${{ secrets.ACTIONS_ACCESS_PK }}
-          organization: ${{ env.TARGET_ORG }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
 
-      - name: Trigger Build And Push Runner Images To Registries
-        env:
-          RUNNER_VERSION: ${{ steps.versions.outputs.runner_version }}
-          CONTAINER_HOOKS_VERSION: ${{ steps.versions.outputs.container_hooks_version }}
-        run: |
-          # Authenticate
-          gh auth login --with-token <<< ${{ steps.get_workflow_token.outputs.token }}
-
-          # Trigger the workflow run
-          gh workflow run ${{ env.TARGET_WORKFLOW }} -R ${{ env.TARGET_ORG }}/releases \
-            -f runner_version=${{ env.RUNNER_VERSION }} \
-            -f docker_version=${{ env.DOCKER_VERSION }} \
-            -f runner_container_hooks_version=${{ env.CONTAINER_HOOKS_VERSION }} \
-            -f sha='${{ github.sha }}' \
-            -f push_to_registries=${{ env.PUSH_TO_REGISTRIES }}
-
-      - name: Job summary
-        env:
-          RUNNER_VERSION: ${{ steps.versions.outputs.runner_version }}
-          CONTAINER_HOOKS_VERSION: ${{ steps.versions.outputs.container_hooks_version }}
-        run: |
-          echo "The [release-runners.yaml](https://github.com/actions-runner-controller/releases/blob/main/.github/workflows/release-runners.yaml) workflow has been triggered!" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Parameters:**" >> $GITHUB_STEP_SUMMARY
-          echo "- runner_version: ${{ env.RUNNER_VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "- docker_version: ${{ env.DOCKER_VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "- runner_container_hooks_version: ${{ env.CONTAINER_HOOKS_VERSION }}" >> $GITHUB_STEP_SUMMARY
-          echo "- sha: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-          echo "- push_to_registries: ${{ env.PUSH_TO_REGISTRIES }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Status:**" >> $GITHUB_STEP_SUMMARY
-          echo "[https://github.com/actions-runner-controller/releases/actions/workflows/release-runners.yaml](https://github.com/actions-runner-controller/releases/actions/workflows/release-runners.yaml)" >> $GITHUB_STEP_SUMMARY
+      - name: Build and Push Versioned Tags
+        uses: docker/build-push-action@v6
+        with:
+          context: ./runner
+          file: ./runner/actions-runner.ubuntu-24.04.dockerfile
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            RUNNER_VERSION=${{ env.RUNNER_VERSION }}
+            DOCKER_VERSION=${{ env.DOCKER_VERSION }}
+            RUNNER_CONTAINER_HOOKS_VERSION=${{ env.CONTAINER_HOOKS_VERSION }}
+          tags: |
+            ghcr.io/erichorwath/actions-runner-controller/custom-u24-runner:v${{ env.RUNNER_VERSION }}-ubuntu-22.04
+          cache-from: |
+            type=gha,scope=sha-${{ github.sha }}
+            type=gha,scope=${{ github.ref_name }}
+            type=gha,scope=${{ github.base_ref || 'main' }}
+            type=gha,scope=main
+          cache-to: |
+            type=gha,scope=sha-${{ github.sha }},mode=max
+            type=gha,scope=${{ github.ref_name }},mode=max
