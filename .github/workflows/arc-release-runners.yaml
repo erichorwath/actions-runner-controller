@@ -55,7 +55,7 @@ jobs:
             DOCKER_VERSION=${{ env.DOCKER_VERSION }}
             RUNNER_CONTAINER_HOOKS_VERSION=${{ steps.versions.outputs.container_hooks_version }}
           tags: |
-            ghcr.io/erichorwath/actions-runner-controller/custom-u24-runner:v${{ env.RUNNER_VERSION }}-ubuntu-22.04
+            ghcr.io/erichorwath/actions-runner-controller/custom-u24-runner:v${{ steps.versions.outputs.runner_version }}-ubuntu-22.04
           cache-from: |
             type=gha,scope=sha-${{ github.sha }}
             type=gha,scope=${{ github.ref_name }}
